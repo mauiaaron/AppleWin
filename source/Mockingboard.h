@@ -26,3 +26,8 @@ bool    MB_LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT slot, UINT ve
 std::string Phasor_GetSnapshotCardName(void);
 void Phasor_SaveSnapshot(class YamlSaveHelper& yamlSaveHelper, const UINT uSlot);
 bool Phasor_LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT slot, UINT version);
+#if MB_TRACING
+void mb_traceBegin(const char *trace_file);
+void mb_traceFlush(void);
+void mb_traceEnd(void);
+#endif

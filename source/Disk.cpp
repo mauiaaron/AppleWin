@@ -396,6 +396,10 @@ static void __stdcall DiskControlMotor(WORD, WORD address, BYTE, BYTE, ULONG uEx
 
 //===========================================================================
 
+#if DISK_TRACING
+FILE *test_read_fp = NULL;
+FILE *test_write_fp = NULL;
+#endif
 static void __stdcall DiskControlStepper(WORD, WORD address, BYTE, BYTE, ULONG uExecutedCycles)
 {
 	Drive_t* pDrive = &g_aFloppyDrive[currdrive];
@@ -425,11 +429,29 @@ static void __stdcall DiskControlStepper(WORD, WORD address, BYTE, BYTE, ULONG u
 	{
 		// phase on
 		phases |= phase_bit;
+#if DISK_TRACING // APPLE2IX
+		{
+                    LOG_DISK("track %02X phases %X phase %d on  address $C0E%X\r", pDrive->phase, phases, phase, address & 0xF);
+                    fprintf(test_read_fp, "\ntrack %02X phases %X phase %d on  address $C0E%X\n", pDrive->phase, phases, phase, address & 0xF);
+                    if (test_write_fp) {
+                        fprintf(test_write_fp, "\ntrack %02X phases %X phase %d on  address $C0E%X\n", pDrive->phase, phases, phase, address & 0xF);
+                    }
+		}
+#endif
 	}
 	else
 	{
 		// phase off
 		phases &= ~phase_bit;
+#if DISK_TRACING // APPLE2IX
+		{
+                    LOG_DISK("track %02X phases %X phase %d off address $C0E%X\r", pDrive->phase, phases, phase, address & 0xF);
+                    fprintf(test_read_fp, "\ntrack %02X phases %X phase %d off address $C0E%X\n", pDrive->phase, phases, phase, address & 0xF);
+                    if (test_write_fp) {
+                        fprintf(test_write_fp, "\ntrack %02X phases %X phase %d off address $C0E%X\n", pDrive->phase, phases, phase, address & 0xF);
+                    }
+		}
+#endif
 	}
 
 	// check for any stepping effect from a magnet
@@ -450,6 +472,15 @@ static void __stdcall DiskControlStepper(WORD, WORD address, BYTE, BYTE, ULONG u
 		const int nNumTracksInImage = ImageGetNumTracks(pFloppy->imagehandle);
 		const int newtrack = (nNumTracksInImage == 0)	? 0
 														: MIN(nNumTracksInImage-1, pDrive->phase >> 1); // (round half tracks down)
+#if DISK_TRACING // APPLE2IX
+		{
+                    LOG_DISK("newtrack %2X%s\r", newtrack, (pDrive->phase & 1) ? ".5" : "");
+			fprintf(test_read_fp, "NEW TRK:%d\n", newtrack);
+			if (test_write_fp) {
+				fprintf(test_write_fp, "NEW TRK:%d\n", newtrack);
+			}
+		}
+#endif
 		if (newtrack != pDrive->track)
 		{
 			DiskFlushCurrentTrack(currdrive);
@@ -856,12 +887,28 @@ static void __stdcall DiskReadWrite(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULO
 	Drive_t* pDrive = &g_aFloppyDrive[currdrive];
 	Disk_t* pFloppy = &pDrive->disk;
 
+#if DISK_TRACING
+	if (!test_read_fp) {
+		test_read_fp = fopen("C:\\Users\\asc\\Desktop\\disktrace.txt", "w");
+	}
+	if (!test_write_fp) {
+		test_write_fp = fopen("C:\\Users\\asc\\Desktop\\disktraceW.txt", "w");
+	}
+#endif
 	if (!pFloppy->trackimagedata && pFloppy->imagehandle)
 		ReadTrack(currdrive);
 
 	if (!pFloppy->trackimagedata)
 	{
 		floppylatch = 0xFF;
+#if DISK_TRACING
+		{
+			fprintf(test_read_fp, "%02X", 0xFF);
+			if (test_write_fp) {
+				fprintf(test_write_fp, "%02X", 0xFF);
+			}
+		}
+#endif
 		return;
 	}
 
@@ -896,6 +943,11 @@ static void __stdcall DiskReadWrite(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULO
 	if (!floppywritemode)
 	{
 		floppylatch = *(pFloppy->trackimage + pFloppy->byte);
+#if DISK_TRACING // APPLE2IX
+		if (test_read_fp) {
+			fprintf(test_read_fp, "%02X", floppylatch);
+		}
+#endif
 
 #if LOG_DISK_NIBBLES_READ
   #if LOG_DISK_NIBBLES_USE_RUNTIME_VAR
@@ -912,6 +964,11 @@ static void __stdcall DiskReadWrite(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULO
 	{
 		*(pFloppy->trackimage + pFloppy->byte) = floppylatch;
 		pFloppy->trackimagedirty = true;
+#if DISK_TRACING // APPLE2IX
+		if (test_write_fp) {
+			fprintf(test_write_fp, "%02X", floppylatch);
+		}
+#endif
 
 		bool bIsSyncFF = false;
 #if LOG_DISK_NIBBLES_WRITE
@@ -942,6 +999,19 @@ static void __stdcall DiskReadWrite(WORD pc, WORD addr, BYTE bWrite, BYTE d, ULO
 	// NB. Prevent flooding of forcing UI to redraw!!!
 	if( ((pFloppy->byte) & 0xFF) == 0 )
 		FrameDrawDiskStatus( (HDC)0 );
+
+#if DISK_TRACING // APPLE2IX
+	{
+		if ((pFloppy->byte % 416) == 0) {//SECTOR NIB SIZE
+			if (floppywritemode && test_write_fp) {
+				fprintf(test_write_fp, "%s", "\n");
+			}
+			else {
+				fprintf(test_read_fp, "%s", "\n");
+			}
+		}
+	}
+#endif
 }
 
 //===========================================================================

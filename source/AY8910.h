@@ -6,7 +6,11 @@
 //-------------------------------------
 // MAME interface
 
-void _AYWriteReg(int chip, int r, int v);
+void _AYWriteReg(int chip, int r, int v
+#if MB_TRACING // APPLE2IX
+	, FILE *mb_trace_fp
+#endif
+	);
 //void AY8910_write_ym(int chip, int addr, int data);
 void AY8910_reset(int chip);
 void AY8910Update(int chip, INT16** buffer, int nNumSamples);
@@ -19,6 +23,9 @@ void AY8910UpdateSetCycles();
 
 UINT AY8910_SaveSnapshot(class YamlSaveHelper& yamlSaveHelper, UINT uChip, std::string& suffix);
 UINT AY8910_LoadSnapshot(class YamlLoadHelper& yamlLoadHelper, UINT uChip, std::string& suffix);
+#if MB_TRACING // APPLE2IX
+void _mb_trace_AY8910(int chip, FILE *mb_trace_fp);
+#endif
 
 //-------------------------------------
 // FUSE stuff
@@ -54,7 +61,11 @@ private:
 	void sound_end( void );
 	void sound_ay_overlay( void );
 
+#if MB_TRACING // APPLE2IX
+public:
+#else
 private:
+#endif
 	/* foo_subcycles are fixed-point with low 16 bits as fractional part.
 	 * The other bits count as the chip does.
 	 */

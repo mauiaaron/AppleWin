@@ -287,7 +287,23 @@ static void ContinueExecution(void)
 
 	//
 
+
+#if MB_TRACING // APPLE2IX
+	static char *mbTraceFile = NULL;
+	static char *mbSampsFile = NULL;
+	if (!mbTraceFile) {
+		mbTraceFile = "C:\\Users\\asc\\Desktop\\mb_trace";
+		mbSampsFile = "C:\\Users\\asc\\Desktop\\mb_trace.samp";
+		_unlink(mbTraceFile);
+		_unlink(mbSampsFile);
+		mb_traceBegin(mbTraceFile); // ".samp" file is automatically created ...
+	}
+#endif
+#if MB_TRACING || DETERMINISTIC_CYCLES
+	int nCyclesWithFeedback = (int) fExecutionPeriodClks; // avoid speaker feedback
+#else
 	int nCyclesWithFeedback = (int) fExecutionPeriodClks + g_nCpuCyclesFeedback;
+#endif
 	const UINT uCyclesToExecuteWithFeedback = (nCyclesWithFeedback >= 0) ? nCyclesWithFeedback
 																		 : 0;
 
@@ -336,6 +352,46 @@ static void ContinueExecution(void)
 			VideoRefreshScreen(); // Just copy the output of our Apple framebuffer to the system Back Buffer
 
 		MB_EndOfVideoFrame();
+
+#if MB_TRACING // APPLE2IX
+		static FILE *fpTrace = NULL;
+		static FILE *fpSamps = NULL;
+		static LONGLONG previous = 0LL;
+		if (!fpTrace) {
+			fpTrace = fopen(mbTraceFile, "r");
+			_ASSERT(fpTrace);
+			fpSamps = fopen(mbSampsFile, "r");
+			_ASSERT(fpSamps);
+			static struct _FILETIME previousStruct;
+			GetSystemTimeAsFileTime(&previousStruct);
+			previous = (LONGLONG) previousStruct.dwLowDateTime + ((LONGLONG) (previousStruct.dwHighDateTime) << 32LL);
+		}
+
+		struct _FILETIME nowStruct;
+		GetSystemTimeAsFileTime(&nowStruct);
+		LONGLONG now = (LONGLONG) nowStruct.dwLowDateTime + ((LONGLONG) (nowStruct.dwHighDateTime) << 32LL);
+		GetSystemTimeAsFileTime(&nowStruct);
+		if ((now - previous) >= 10000000) {
+			previous = now;
+			fseek(fpTrace, 0, SEEK_END);
+			long minSizeTrace = ftell(fpTrace);
+
+			fseek(fpSamps, 0, SEEK_END);
+			long minSizeSamps = ftell(fpSamps);
+
+#	if 1 // TEST : Assumes NSCT.dsk image is inserted
+#		define NSCT_TRACE_TARGET_SIZ (512 * 65536)  // 2^25
+#		define NSCT_SAMPS_TARGET_SIZ (2048 * 65536) // 2^27
+			if ((minSizeTrace >= NSCT_TRACE_TARGET_SIZ) && (minSizeSamps >= NSCT_SAMPS_TARGET_SIZ)) {
+				mb_traceEnd();
+				while (1) {
+					fprintf(stderr, "Tracing test ended.");
+					Sleep(1000);
+				}
+			}
+#	endif
+		}
+#endif
 	}
 
 	if ((g_nAppMode == MODE_RUNNING && !g_bFullSpeed) || bModeStepping_WaitTimer)

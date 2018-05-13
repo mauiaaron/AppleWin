@@ -329,6 +329,9 @@ LPBYTE CImageBase::Code62(int sector)
 }
 
 //-------------------------------------
+#if DISK_TRACING
+extern FILE *test_write_fp;
+#endif
 
 void CImageBase::Decode62(LPBYTE imageptr)
 {
@@ -356,6 +359,16 @@ void CImageBase::Decode62(LPBYTE imageptr)
 			*(resultptr++) = sixbitbyte[*(sourceptr++) & 0x7F];
 	}
 
+#if DISK_TRACING
+	{
+		fprintf(test_write_fp, "SIXBITNIBS:\n");
+		for (unsigned int i = 0; i < 343; i++) {
+			fprintf(test_write_fp, "%02X", *((ms_pWorkBuffer + TRACK_DENIBBLIZED_SIZE + 0x400) + i));
+		}
+		fprintf(test_write_fp, "\n");
+	}
+#endif
+
 	// EXCLUSIVE-OR THE ENTIRE DATA BLOCK WITH ITSELF OFFSET BY ONE BYTE
 	// TO UNDO THE EFFECTS OF THE CHECKSUMMING PROCESS
 	{
@@ -369,6 +382,16 @@ void CImageBase::Decode62(LPBYTE imageptr)
 			savedval = *(resultptr++);
 		}
 	}
+
+#if DISK_TRACING
+	 {
+		fprintf(test_write_fp, "XORNIBS:\n");
+		for (unsigned int i = 0; i < 342; i++) {
+			fprintf(test_write_fp, "%02X", *((ms_pWorkBuffer + TRACK_DENIBBLIZED_SIZE) + i));
+		}
+		fprintf(test_write_fp, "\n");
+	}
+#endif
 
 	// CONVERT THE 342 6-BIT BYTES INTO 256 8-BIT BYTES
 	{
@@ -398,6 +421,16 @@ void CImageBase::Decode62(LPBYTE imageptr)
 			lowbitsptr++;
 		}
 	}
+
+#if DISK_TRACING
+	{
+		fprintf(test_write_fp, "SECTOR:\n");
+		for (unsigned int i = 0; i < 256; i++) {
+			fprintf(test_write_fp, "%02X", *(imageptr+i));
+		}
+		fprintf(test_write_fp, "\n");
+	}
+#endif
 }
 
 //-------------------------------------
@@ -411,6 +444,11 @@ void CImageBase::DenibblizeTrack(LPBYTE trackimage, SectorOrder_e SectorOrder, i
 	// BUFFER AT OFFSET 4K.  THEN CALL DECODE62() TO DENIBBLIZE THE DATA
 	// IN THE BUFFER AND WRITE IT INTO THE FIRST PART OF THE WORK BUFFER
 	// OFFSET BY THE SECTOR NUMBER.
+#if DISK_TRACING
+	if (test_write_fp) {
+		fprintf(test_write_fp, "DSK OUT:\n");
+	}
+#endif
 
 #ifdef _DEBUG
 	UINT16 bmWrittenSectorAddrFields = 0x0000;

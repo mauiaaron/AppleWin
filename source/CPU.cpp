@@ -135,7 +135,10 @@ static ULONG g_nCyclesExecuted;	// # of cycles executed up to last IO access
 // TODO: Use IRQ_CHECK_TIMEOUT=128 when running at full-speed else with IRQ_CHECK_TIMEOUT=1
 // - What about when running benchmark?
 static const int IRQ_CHECK_TIMEOUT = 128;
-static signed int g_nIrqCheckTimeout = IRQ_CHECK_TIMEOUT;
+#if !CPU_TRACING
+static
+#endif
+signed int g_nIrqCheckTimeout = IRQ_CHECK_TIMEOUT;
 
 //
 
@@ -413,7 +416,15 @@ static __forceinline void IRQ(ULONG& uExecutedCycles, BOOL& flagc, BOOL& flagn, 
 		regs.ps = regs.ps | AF_INTERRUPT & ~AF_DECIMAL;
 		regs.pc = * (WORD*) (mem+0xFFFE);
 		UINT uExtraCycles = 0;	// Needed for CYC(a) macro
+#if 0 // APPLE2IX -- is this still needed ?
+		unsigned int traceCycles = 0;
+		UINT extraCycles = uExtraCycles;
+		uExtraCycles = 0;
+		CYC(7);
+		uExtraCycles = extraCycles;
+#else
 		CYC(7)
+#endif
 	}
 }
 

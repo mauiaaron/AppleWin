@@ -1639,6 +1639,9 @@ void MemReset()
 
 BYTE MemReadFloatingBus(const ULONG uExecutedCycles)
 {
+#if CPU_TRACING // APPLE2IX
+	return 0;
+#endif
 //	return mem[ VideoGetScannerAddress(NULL, uExecutedCycles) ];	// NG: ANSI STORY (End Credits) - repro by running from "Turn the disk over"
 	return mem[ NTSC_VideoGetScannerAddress(uExecutedCycles) ];		// OK: This does the 2-cycle adjust for ANSI STORY (End Credits)
 }
@@ -1647,6 +1650,9 @@ BYTE MemReadFloatingBus(const ULONG uExecutedCycles)
 
 BYTE MemReadFloatingBus(const BYTE highbit, const ULONG uExecutedCycles)
 {
+#if CPU_TRACING // APPLE2IX
+	return 0;
+#endif
 	BYTE r = MemReadFloatingBus(uExecutedCycles);
 	return (r & ~0x80) | ((highbit) ? 0x80 : 0);
 }
