@@ -440,6 +440,97 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 	static void updateScreenText40       ( long cycles6502 );
 	static void updateScreenText80       ( long cycles6502 );
 
+#if VIDEO_TRACING
+static FILE *video_trace_fp = NULL;
+
+static void video_scannerTraceEnd(void) {
+	if (video_trace_fp) {
+		fflush(video_trace_fp);
+		fclose(video_trace_fp);
+		video_trace_fp = NULL;
+	}
+}
+
+static void video_scannerTraceBegin(const char *trace_file) {
+	if (video_trace_fp) {
+		video_scannerTraceEnd();
+	}
+	if (trace_file) {
+		video_trace_fp = fopen(trace_file, "w");
+	}
+}
+
+static void video_scannerTraceCheckpoint(void) {
+	if (video_trace_fp) {
+		fflush(video_trace_fp);
+	}
+}
+
+static void video_printSoftwitches(void) {
+
+	fprintf(video_trace_fp, "[");
+	if (g_uVideoMode & VF_TEXT) {
+		fprintf(video_trace_fp, " TEXT");
+	}
+	if (g_uVideoMode & VF_MIXED) {
+		fprintf(video_trace_fp, " MIXED");
+	}
+	if (GetMemMode() & MF_HIRES) {
+		fprintf(video_trace_fp, " HIRES");
+	}
+	if (GetMemMode() & MF_PAGE2) {
+		fprintf(video_trace_fp, " PAGE2");
+	}
+	if (GetMemMode() & MF_BANK2) {
+		fprintf(video_trace_fp, " BANK2");
+	}
+	if (GetMemMode() & MF_HIGHRAM) {
+		fprintf(video_trace_fp, " LCRAM");
+	}
+	if (GetMemMode() & MF_80STORE) {
+		fprintf(video_trace_fp, " 80STORE");
+	}
+	if (g_uVideoMode & VF_80COL) {
+		fprintf(video_trace_fp, " 80COL");
+	}
+	if (GetMemMode() & MF_AUXREAD) {
+		fprintf(video_trace_fp, " RAMRD");
+	}
+	if (GetMemMode() & MF_AUXWRITE) {
+		fprintf(video_trace_fp, " RAMWRT");
+	}
+	if (GetMemMode() & MF_ALTZP) {
+		fprintf(video_trace_fp, " ALTZP");
+	}
+	if (GetMemMode() & VF_DHIRES) {
+		fprintf(video_trace_fp, " DHIRES");
+	}
+	if (0/*TODO FIXME : IOUDIS*/) {
+		fprintf(video_trace_fp, " IOUDIS");
+	}
+	if (GetMemMode() & MF_INTCXROM) {
+		fprintf(video_trace_fp, " CXROM");
+	}
+	if (GetMemMode() & MF_SLOTC3ROM) {
+		fprintf(video_trace_fp, " C3ROM");
+	}
+	if (VideoGetSWAltCharSet()) {
+		fprintf(video_trace_fp, " ALTCHAR");
+	}
+
+	fprintf(video_trace_fp, " ]");
+}
+
+static void video_printTracingData(const char *type, uint16_t addr)
+{
+	uint8_t mbd = MemGetMainPtr(addr)[0];
+	uint8_t aux = MemGetAuxPtr(addr)[0];
+	fprintf(video_trace_fp, "%03u %s (%u) %04X/0:%02X /1:%02X ", g_nVideoClockVert, type, xxxCyclesCount, addr, mbd, aux);
+	video_printSoftwitches();
+	fprintf(video_trace_fp, "%s", "\n");
+}
+#endif
+
 //===========================================================================
 static void set_csbits()
 {
@@ -1134,6 +1225,9 @@ void updateScreenDoubleHires40 (long cycles6502) // wsUpdateVideoHires0
 	{
 		uint16_t addr = updateVideoScannerAddressHGR();
 
+#if VIDEO_TRACING
+		char *type = "xBL";
+#endif
 		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY)
 		{
 			if ((g_nVideoClockHorz < VIDEO_SCANNER_HORZ_COLORBURST_END) && (g_nVideoClockHorz >= VIDEO_SCANNER_HORZ_COLORBURST_BEG))
@@ -1146,8 +1240,14 @@ void updateScreenDoubleHires40 (long cycles6502) // wsUpdateVideoHires0
 				uint8_t  m     = pMain[0];
 				uint16_t bits  = g_aPixelDoubleMaskHGR[m & 0x7F]; // Optimization: hgrbits second 128 entries are mirror of first 128
 				updatePixels( bits );
+#if VIDEO_TRACING
+				type = "VIS";
+#endif
 			}
 		}
+#if VIDEO_TRACING
+		video_printTracingData(type, addr);
+#endif
 		updateVideoScannerHorzEOL();
 	}
 }
@@ -1167,6 +1267,9 @@ void updateScreenDoubleHires80 (long cycles6502 ) // wsUpdateVideoDblHires
 	{
 		uint16_t addr = updateVideoScannerAddressHGR();
 
+#if VIDEO_TRACING
+		char *type = "xBL";
+#endif
 		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY)
 		{
 			if ((g_nVideoClockHorz < VIDEO_SCANNER_HORZ_COLORBURST_END) && (g_nVideoClockHorz >= VIDEO_SCANNER_HORZ_COLORBURST_BEG))
@@ -1185,8 +1288,14 @@ void updateScreenDoubleHires80 (long cycles6502 ) // wsUpdateVideoDblHires
 				bits = (bits << 1) | g_nLastColumnPixelNTSC;
 				updatePixels( bits );
 				g_nLastColumnPixelNTSC = (bits >> 14) & 3;
+#if VIDEO_TRACING
+				type = "VIS";
+#endif
 			}
 		}
+#if VIDEO_TRACING
+		video_printTracingData(type, addr);
+#endif
 		updateVideoScannerHorzEOL();
 	}
 }
@@ -1204,6 +1313,9 @@ void updateScreenDoubleLores40 (long cycles6502) // wsUpdateVideo7MLores
 	{
 		uint16_t addr = updateVideoScannerAddressTXT();
 
+#if VIDEO_TRACING
+		char *type = "xBL";
+#endif
 		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY)
 		{
 			if ((g_nVideoClockHorz < VIDEO_SCANNER_HORZ_COLORBURST_END) && (g_nVideoClockHorz >= VIDEO_SCANNER_HORZ_COLORBURST_BEG))
@@ -1217,8 +1329,14 @@ void updateScreenDoubleLores40 (long cycles6502) // wsUpdateVideo7MLores
 				uint16_t lo    = getLoResBits( m ); 
 				uint16_t bits  = g_aPixelDoubleMaskHGR[(0xFF & lo >> ((1 - (g_nVideoClockHorz & 1)) * 2)) & 0x7F]; // Optimization: hgrbits
 				updatePixels( bits );
+#if VIDEO_TRACING
+				type = "VIS";
+#endif
 			}
 		}
+#if VIDEO_TRACING
+		video_printTracingData(type, addr);
+#endif
 		updateVideoScannerHorzEOL();
 	}
 }
@@ -1236,6 +1354,9 @@ void updateScreenDoubleLores80 (long cycles6502) // wsUpdateVideoDblLores
 	{
 		uint16_t addr = updateVideoScannerAddressTXT();
 
+#if VIDEO_TRACING
+		char *type = "xBL";
+#endif
 		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY)
 		{
 			if ((g_nVideoClockHorz < VIDEO_SCANNER_HORZ_COLORBURST_END) && (g_nVideoClockHorz >= VIDEO_SCANNER_HORZ_COLORBURST_BEG))
@@ -1259,8 +1380,14 @@ void updateScreenDoubleLores80 (long cycles6502) // wsUpdateVideoDblLores
 				updatePixels( bits );
 				g_nLastColumnPixelNTSC = (bits >> 14) & 3;
 
+#if VIDEO_TRACING
+				type = "VIS";
+#endif
 			}
 		}
+#if VIDEO_TRACING
+		video_printTracingData(type, addr);
+#endif
 		updateVideoScannerHorzEOL();
 
 	}
@@ -1279,6 +1406,9 @@ void updateScreenSingleHires40 (long cycles6502)
 	{
 		uint16_t addr = updateVideoScannerAddressHGR();
 
+#if VIDEO_TRACING
+		char *type = "xBL";
+#endif
 		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY)
 		{
 			if ((g_nVideoClockHorz < VIDEO_SCANNER_HORZ_COLORBURST_END) && (g_nVideoClockHorz >= VIDEO_SCANNER_HORZ_COLORBURST_BEG))
@@ -1293,8 +1423,14 @@ void updateScreenSingleHires40 (long cycles6502)
 				if (m & 0x80)
 					bits = (bits << 1) | g_nLastColumnPixelNTSC;
 				updatePixels( bits );
+#if VIDEO_TRACING
+				type = "VIS";
+#endif
 			}
 		}
+#if VIDEO_TRACING
+		video_printTracingData(type, addr);
+#endif
 		updateVideoScannerHorzEOL();
 	}
 }
@@ -1312,6 +1448,9 @@ void updateScreenSingleLores40 (long cycles6502)
 	{
 		uint16_t addr = updateVideoScannerAddressTXT();
 
+#if VIDEO_TRACING
+		char *type = "xBL";
+#endif
 		if (g_nVideoClockVert < VIDEO_SCANNER_Y_DISPLAY)
 		{
 			if ((g_nVideoClockHorz < VIDEO_SCANNER_HORZ_COLORBURST_END) && (g_nVideoClockHorz >= VIDEO_SCANNER_HORZ_COLORBURST_BEG))
@@ -1325,8 +1464,14 @@ void updateScreenSingleLores40 (long cycles6502)
 				uint16_t lo    = getLoResBits( m ); 
 				uint16_t bits  = lo >> ((1 - (g_nVideoClockHorz & 1)) * 2);
 				updatePixels( bits );
+#if VIDEO_TRACING
+				type = "VIS";
+#endif
 			}
 		}
+#if VIDEO_TRACING
+		video_printTracingData(type, addr);
+#endif
 		updateVideoScannerHorzEOL();
 	}
 }
@@ -1338,6 +1483,9 @@ void updateScreenText40 (long cycles6502)
 	{
 		uint16_t addr = updateVideoScannerAddressTXT();
 
+#if VIDEO_TRACING
+		char *type = "xBL";
+#endif
 		if ((g_nVideoClockHorz < VIDEO_SCANNER_HORZ_COLORBURST_END) && (g_nVideoClockHorz >= VIDEO_SCANNER_HORZ_COLORBURST_BEG))
 		{
 			if (g_nColorBurstPixels > 0)
@@ -1356,9 +1504,15 @@ void updateScreenText40 (long cycles6502)
 					bits ^= g_nTextFlashMask;
 
 				updatePixels( bits );
-
+#if VIDEO_TRACING
+				type = "VIS";
+#endif
 			}
 		}
+
+#if VIDEO_TRACING
+		video_printTracingData(type, addr);
+#endif
 		updateVideoScannerHorzEOL();
 	}
 }
@@ -1370,6 +1524,9 @@ void updateScreenText80 (long cycles6502)
 	{
 		uint16_t addr = updateVideoScannerAddressTXT();
 
+#if VIDEO_TRACING
+		char *type = "xBL";
+#endif
 		if ((g_nVideoClockHorz < VIDEO_SCANNER_HORZ_COLORBURST_END) && (g_nVideoClockHorz >= VIDEO_SCANNER_HORZ_COLORBURST_BEG))
 		{
 			if (g_nColorBurstPixels > 0)
@@ -1396,8 +1553,14 @@ void updateScreenText80 (long cycles6502)
 
 				uint16_t bits = (main << 7) | aux;
 				updatePixels( bits );
+#if VIDEO_TRACING
+				type = "VIS";
+#endif
 			}
 		}
+#if VIDEO_TRACING
+		video_printTracingData(type, addr);
+#endif
 		updateVideoScannerHorzEOL();
 	}
 }
@@ -1623,6 +1786,14 @@ _mono:
 //===========================================================================
 void NTSC_VideoInit( uint8_t* pFramebuffer ) // wsVideoInit
 {
+#if VIDEO_TRACING // APPLE2IX
+	static char *videoTraceFile = NULL;
+	if (!videoTraceFile) {
+		videoTraceFile = "C:\\Users\\asc\\Desktop\\video_trace.txt";
+		video_scannerTraceBegin(videoTraceFile);
+	}
+#endif
+
 	make_csbits();
 	initPixelDoubleMasks();
 	initChromaPhaseTables();
